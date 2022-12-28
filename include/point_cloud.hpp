@@ -62,10 +62,10 @@ public:
 
     void save(const std::string& filename) const {
         std::ofstream ofs(filename, std::ios::binary);
-        ofs.write(reinterpret_cast<const char*>(data.data()), data.size() * PointType::Size);
+        ofs.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size() * PointType::Size));
     }
 
-    const auto num_elems() const { return data.size(); }
+    auto num_elems() const { return data.size(); }
 };
 
 } // namespace PointCloud

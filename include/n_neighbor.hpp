@@ -17,7 +17,7 @@ public:
             return LenN8;
         }
         else {
-            return len<4>();
+            return LenN4;
         }
     }
 
@@ -30,7 +30,7 @@ public:
             return N8x;
         }
         else {
-            return X<4>();
+            return N4x;
         }
     }
 
@@ -43,7 +43,7 @@ public:
             return N8y;
         }
         else {
-            return Y<4>();
+            return N4y;
         }
     }
 

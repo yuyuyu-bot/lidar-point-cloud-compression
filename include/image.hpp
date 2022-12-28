@@ -23,7 +23,7 @@ public:
 
     Image(const std::string& filename) {
         static_assert(std::is_same_v<ElemType, std::uint16_t>, "Image loading supports only std::uint16_t.");
-        const cv::Mat1w image(filename, cv::IMREAD_UNCHANGED);
+        const cv::Mat1w image = cv::imread(filename, cv::IMREAD_UNCHANGED);
         create(image.cols, image.rows, image.data);
     }
 
@@ -65,14 +65,16 @@ public:
     auto encode(const std::string& format, const std::vector<int>& params = std::vector<int>()) {
         static_assert(std::is_same_v<ElemType, std::uint8_t> || std::is_same_v<ElemType, std::uint16_t> ||
                       std::is_same_v<ElemType, float>);
+        const auto rows = static_cast<int>(height_);
+        const auto cols = static_cast<int>(width_);
 
         cv::Mat image;
         if constexpr (std::is_same_v<ElemType, std::uint8_t>) {
-            image = cv::Mat(height_, width_, CV_8UC1, data_.get());
+            image = cv::Mat(rows, cols, CV_8UC1, data_.get());
         } else if constexpr (std::is_same_v<ElemType, std::uint16_t>) {
-            image = cv::Mat(height_, width_, CV_16UC1, data_.get());
+            image = cv::Mat(rows, cols, CV_16UC1, data_.get());
         } else if constexpr (std::is_same_v<ElemType, float>) {
-            image = cv::Mat(height_, width_, CV_8UC4, data_.get());
+            image = cv::Mat(rows, cols, CV_8UC4, data_.get());
         }
 
         std::vector<std::uint8_t> buffer;
@@ -101,36 +103,23 @@ struct RGB {
 };
 
 template <typename ElemType, typename SaveType = ElemType>
-void save_raw(const std::string& filename, const Image<ElemType>& image,
-              const std::function<SaveType(ElemType)>& element_op = [](const ElemType& v){ return v; }) {
-    std::ofstream ofs(filename);
-    if (!ofs) {
-        std::cerr << "Failed to open " << filename << std::endl;
-        return;
-    }
-
-    for (std::size_t y = 0; y < image.height(); y++) {
-        for (std::size_t x = 0; x < image.width; x++) {
-            ofs << element_op(image.at(x, y));
-        }
-    }
-};
-
-template <typename ElemType, typename SaveType = ElemType>
 void save_image(const std::string& filename, const Image<ElemType>& image,
                 const float offset = 0.f, const float scale = 1.f) {
     static_assert(std::is_same_v<ElemType, RGB> ||
                   std::is_same_v<ElemType, std::uint16_t> ||
                   std::is_same_v<ElemType, float>);
 
+    const auto rows = static_cast<int>(image.height());
+    const auto cols = static_cast<int>(image.width());
+
     if constexpr (std::is_same_v<ElemType, RGB>) {
-        const cv::Mat cv_img(image.height(), image.width(), CV_8UC3, image.data());
+        const cv::Mat cv_img(rows, cols, CV_8UC3, image.data());
         cv::imwrite(filename, cv_img);
     } else if constexpr (std::is_same_v<ElemType, std::uint16_t>) {
-        const cv::Mat cv_img(image.height(), image.width(), CV_16UC1, image.data());
+        const cv::Mat cv_img(rows, cols, CV_16UC1, image.data());
         cv::imwrite(filename, cv_img);
     } else if constexpr (std::is_same_v<ElemType, float>) {
-        cv::Mat1w cv_img(image.height(), image.width());
+        cv::Mat1w cv_img(rows, cols);
         for (std::size_t y = 0; y < image.height(); y++) {
             for (std::size_t x = 0; x < image.width(); x++) {
                 const auto value   = (image.at(x, y) + offset) * scale;
@@ -152,16 +141,19 @@ void labels_to_color(const Image<int>& label_image, Image<RGB>& color_image) {
     const auto width = label_image.width();
     const auto height = label_image.height();
 
-    int num_labels = -1;
+    std::size_t num_labels = 0;
     for (std::size_t y = 0; y < height; y++) {
         for (std::size_t x = 0; x < width; x++) {
-            num_labels = std::max(num_labels, label_image.at(x, y));
+            if (label_image.at(x, y) < 0) {
+                continue;
+            }
+            num_labels = std::max(num_labels, static_cast<std::size_t>(label_image.at(x, y)));
         }
     }
 
     std::mt19937 engine(42);
     const auto colors = std::make_unique<RGB[]>(num_labels);
-    for (int idx = 0; idx < num_labels; idx++) {
+    for (std::size_t idx = 0; idx < num_labels; idx++) {
         colors[idx].r = engine() % std::numeric_limits<std::uint8_t>::max();
         colors[idx].g = engine() % std::numeric_limits<std::uint8_t>::max();
         colors[idx].b = engine() % std::numeric_limits<std::uint8_t>::max();
@@ -172,7 +164,7 @@ void labels_to_color(const Image<int>& label_image, Image<RGB>& color_image) {
             if (label_image.at(x, y) < 0) {
                 continue;
             }
-            color_image.at(x, y) = colors[label_image.at(x, y)];
+            color_image.at(x, y) = colors[static_cast<std::size_t>(label_image.at(x, y))];
         }
     }
 }

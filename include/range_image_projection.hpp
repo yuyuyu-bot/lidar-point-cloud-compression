@@ -39,7 +39,7 @@ public:
 
     const RangeType   range_max;
     const float       horizontal_degree_resolution;
-    const float       vertical_division;
+    const int         vertical_division;
     const float       vertical_degree;
     const float       vertical_degree_offset;
     const float       range_scale;
@@ -55,9 +55,9 @@ public:
       vertical_degree(params.vertical_degree),
       vertical_degree_offset(params.vertical_degree_offset),
       range_scale(static_cast<float>(std::numeric_limits<RangeType>::max()) / params.range_max),
-      vertical_degree_resolution(params.vertical_degree / params.vertical_division),
-      width(static_cast<int>(horizontal_degree / params.horizontal_degree_resolution)),
-      height(static_cast<int>(params.vertical_division)),
+      vertical_degree_resolution(params.vertical_degree / static_cast<float>(params.vertical_division)),
+      width(static_cast<std::size_t>(horizontal_degree / params.horizontal_degree_resolution)),
+      height(static_cast<std::size_t>(params.vertical_division)),
       range_image(width, height),
       yaw_image(width, height),
       pitch_image(width, height) {}
@@ -79,8 +79,8 @@ public:
         const auto v_horizontal_degree_resolution = cv::v_setall_f32(horizontal_degree_resolution);
         const auto v_vertical_degree_offset       = cv::v_setall_f32(vertical_degree_offset);
         const auto v_vertical_degree_resolution   = cv::v_setall_f32(vertical_degree_resolution);
-        const auto v_width_m_1                    = cv::v_setall_f32(width - 1);
-        const auto v_height_m_1                   = cv::v_setall_f32(height - 1);
+        const auto v_width_m_1                    = cv::v_setall_f32(static_cast<float>(width - 1));
+        const auto v_height_m_1                   = cv::v_setall_f32(static_cast<float>(height - 1));
         const auto v_range_t_min                  = cv::v_setall_f32(std::numeric_limits<RangeType>::min());
         const auto v_range_t_max                  = cv::v_setall_f32(std::numeric_limits<RangeType>::max());
 
@@ -109,6 +109,7 @@ public:
                 v_y = v_height_m_1 - v_y;
             }
 
+#pragma unroll simd_width
             for (std::size_t i = 0; i < simd_width; i++) {
                 const auto x = static_cast<std::size_t>(v_x.val[i]);
                 const auto y = static_cast<std::size_t>(v_y.val[i]);
@@ -130,19 +131,20 @@ public:
             const auto yaw      = atan2_degree(point_y, point_x);
             const auto pitch    = atan2_degree(point_z, distance);
 
-            const auto x = std::clamp<int>(
-                (yaw + horizontal_degree_offset) / horizontal_degree_resolution,
-                0,
+            const auto x = std::min(
+                static_cast<std::size_t>((yaw + horizontal_degree_offset) / horizontal_degree_resolution),
                 width - 1);
-            const auto y = std::clamp<int>(
-                (pitch + vertical_degree_offset) / vertical_degree_resolution,
-                0,
+            const auto y = std::min(
+                static_cast<std::size_t>((pitch + vertical_degree_offset) / vertical_degree_resolution),
                 height - 1);
 
-            const int Y = (FLIP == 0) ? y : height - 1 - y;
+            const auto Y = (FLIP == 0) ? static_cast<std::size_t>(y) : height - 1 - y;
             range_out.at(x, Y) = static_cast<RangeType>(
-                std::clamp<RangeType>(range * range_scale, std::numeric_limits<RangeType>::min(), std::numeric_limits<RangeType>::max()));
-            range_image.at(x,  Y) = range;
+                std::clamp<float>(
+                    range * range_scale,
+                    std::numeric_limits<RangeType>::min(),
+                    std::numeric_limits<RangeType>::max()));
+            range_image.at(x, Y) = range;
             yaw_image.at(x, Y) = yaw;
             pitch_image.at(x, Y) = pitch;
         }
@@ -161,19 +163,20 @@ public:
             const auto yaw      = atan2_degree(point_y, point_x);
             const auto pitch    = atan2_degree(point_z, distance);
 
-            const auto x = std::clamp<int>(
-                (yaw + horizontal_degree_offset) / horizontal_degree_resolution,
-                0,
+            const auto x = std::min(
+                static_cast<std::size_t>((yaw + horizontal_degree_offset) / horizontal_degree_resolution),
                 width - 1);
-            const auto y = std::clamp<int>(
-                (pitch + vertical_degree_offset) / vertical_degree_resolution,
-                0,
+            const auto y = std::min(
+                static_cast<std::size_t>((pitch + vertical_degree_offset) / vertical_degree_resolution),
                 height - 1);
 
-            const int Y = (FLIP == 0) ? y : height - 1 - y;
+            const auto Y = (FLIP == 0) ? static_cast<std::size_t>(y) : height - 1 - y;
             range_out.at(x, Y) = static_cast<RangeType>(
-                std::clamp<RangeType>(range * range_scale, std::numeric_limits<RangeType>::min(), std::numeric_limits<RangeType>::max()));
-            range_image.at(x,  Y) = range;
+                std::clamp<float>(
+                    range * range_scale,
+                    std::numeric_limits<RangeType>::min(),
+                    std::numeric_limits<RangeType>::max()));
+            range_image.at(x, Y) = range;
             yaw_image.at(x, Y) = yaw;
             pitch_image.at(x, Y) = pitch;
         }
@@ -263,10 +266,10 @@ private:
 
     template <int FLIP>
     std::tuple<float, float, float> calculate_3d_coord(const float range, const std::size_t x, const std::size_t y) {
-        const int Y = (FLIP == 0) ? y : height - 1 - y;
+        const auto Y = (FLIP == 0) ? y : height - 1 - y;
 
-        const auto yaw      = (x + 0.5f) * horizontal_degree_resolution - horizontal_degree_offset;
-        const auto pitch    = (Y + 0.5f) * vertical_degree_resolution - vertical_degree_offset;
+        const auto yaw      = (static_cast<float>(x) + 0.5f) * horizontal_degree_resolution - horizontal_degree_offset;
+        const auto pitch    = (static_cast<float>(Y) + 0.5f) * vertical_degree_resolution - vertical_degree_offset;
         const auto distance = range * std::cos(degree_to_radian(pitch));
         const auto point_z  = range * std::sin(degree_to_radian(pitch));
         const auto point_y  = distance * std::sin(degree_to_radian(yaw));

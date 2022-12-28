@@ -32,16 +32,16 @@ void ground_labeling(const Image::Image<std::uint16_t>& range_image, Image::Imag
     std::fill_n(angle_image.data(), angle_image.length(), INVALID_ANGLE); // Initialize angles.
     const auto ys = (FLIP == 0) ? 0 : height - 1;
     const auto ye = (FLIP == 0) ? height - 2 : 1;
-    const auto yd = (FLIP == 0) ? 1 : -1;
-    for (std::size_t y = ys; y != ye; y += yd) {
+    const auto update_op = (FLIP == 0) ? [](const std::size_t& v) { return v + 1; } : [](const std::size_t& v) { return v - 1; };
+    for (std::size_t y = ys; y != ye; y = update_op(y)) {
         for (std::size_t x = 0; x < width; x++) {
             const auto point_y  = range_image.at(x, y);
-            const auto point_y1 = range_image.at(x, y + yd);
+            const auto point_y1 = range_image.at(x, update_op(y));
             if (point_y == 0 || point_y1 == 0) {
                 continue;
             }
-            const auto pitch_y  = degree_to_radian((y +  0) * vertical_degree_resolution - vertical_degree_offset);
-            const auto pitch_y1 = degree_to_radian((y + yd) * vertical_degree_resolution - vertical_degree_offset);
+            const auto pitch_y  = degree_to_radian(static_cast<float>(y)            * vertical_degree_resolution - vertical_degree_offset);
+            const auto pitch_y1 = degree_to_radian(static_cast<float>(update_op(y)) * vertical_degree_resolution - vertical_degree_offset);
 
             const float del_z = std::abs(point_y1 * std::sin(pitch_y1) - point_y * std::sin(pitch_y));
             const float del_x = std::abs(point_y1 * std::cos(pitch_y1) - point_y * std::cos(pitch_y));
@@ -69,9 +69,11 @@ void ground_labeling(const Image::Image<std::uint16_t>& range_image, Image::Imag
 
                 const auto cangle = angle_image.at(cx, cy);
                 for (std::size_t nidx = 0; nidx < NNeighbor::len<NEIGHBOR_N>(); nidx++) {
-                    const auto nx = static_cast<int>(cx) + NNeighbor::X<NEIGHBOR_N>()[nidx];
-                    const auto ny = static_cast<int>(cy) + NNeighbor::Y<NEIGHBOR_N>()[nidx];
-                    if (nx < 0 || nx >= static_cast<int>(width) || ny < 0 || ny >= static_cast<int>(height) ||
+                    const auto s_nx = static_cast<int>(cx) + NNeighbor::X<NEIGHBOR_N>()[nidx];
+                    const auto s_ny = static_cast<int>(cy) + NNeighbor::Y<NEIGHBOR_N>()[nidx];
+                    const auto nx = static_cast<std::size_t>(s_nx);
+                    const auto ny = static_cast<std::size_t>(s_ny);
+                    if (s_nx < 0 || s_nx >= static_cast<int>(width) || s_ny < 0 || s_ny >= static_cast<int>(height) ||
                         range_image.at(nx, ny) == 0) {
                         continue;
                     }
@@ -89,7 +91,7 @@ void ground_labeling(const Image::Image<std::uint16_t>& range_image, Image::Imag
     for (std::size_t x = 0; x < width; x++) {
         std::size_t y = ys;
         while (range_image.at(x, y) == 0 && y != ye) {
-            y += yd;
+            y = update_op(y);
         }
         if (y != ye) {
             label_ground_bfs(x, y);
@@ -98,7 +100,7 @@ void ground_labeling(const Image::Image<std::uint16_t>& range_image, Image::Imag
 }
 
 void range_image_labeling(const Image::Image<std::uint16_t>& range_image, Image::Image<int>& label_image,
-                          const float yaw_precision = 0.18, const float pitch_precision = 0.45) {
+                          const float yaw_precision = 0.18f, const float pitch_precision = 0.45f) {
     const auto width = range_image.width();
     const auto height = range_image.height();
 
@@ -125,9 +127,11 @@ void range_image_labeling(const Image::Image<std::uint16_t>& range_image, Image:
 
                 const auto crange = range_image.at(cx, cy);
                 for (std::size_t nidx = 0; nidx < NNeighbor::len<NEIGHBOR_N>(); nidx++) {
-                    const auto nx = static_cast<int>(cx) + NNeighbor::X<NEIGHBOR_N>()[nidx];
-                    const auto ny = static_cast<int>(cy) + NNeighbor::Y<NEIGHBOR_N>()[nidx];
-                    if (nx < 0 || nx >= static_cast<int>(width) || ny < 0 || ny >= static_cast<int>(height)) {
+                    const auto s_nx = static_cast<int>(cx) + NNeighbor::X<NEIGHBOR_N>()[nidx];
+                    const auto s_ny = static_cast<int>(cy) + NNeighbor::Y<NEIGHBOR_N>()[nidx];
+                    const auto nx = static_cast<std::size_t>(s_nx);
+                    const auto ny = static_cast<std::size_t>(s_ny);
+                    if (s_nx < 0 || s_nx >= static_cast<int>(width) || s_ny < 0 || s_ny >= static_cast<int>(height)) {
                         continue;
                     }
 

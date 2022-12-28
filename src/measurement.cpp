@@ -12,9 +12,9 @@ template <typename RangeType>
 void encode_decode_measurement(const PointCloud::PointCloud& cloud,
                                const std::string& format,
                                const std::vector<int>& params = std::vector<int>(),
-                               const std::size_t num_itr = 10) {
-    const auto size_of_cloud = [](const PointCloud::PointCloud& cloud) {
-        return cloud.num_elems() * sizeof(float) * 3;
+                               const int num_itr = 10) {
+    const auto size_of_cloud = [](const PointCloud::PointCloud& _cloud) {
+        return _cloud.num_elems() * sizeof(float) * 3;
     };
 
     Timer timer;
@@ -24,10 +24,10 @@ void encode_decode_measurement(const PointCloud::PointCloud& cloud,
     Image::Image<RangeType> decoded(range_image.width(), range_image.height());
     PointCloud::PointCloud decoded_cloud;
 
-    std::uint64_t duration_encode_sum = 0ull;
-    std::uint64_t duration_decode_sum = 0ull;
+    std::int64_t duration_encode_sum = 0ll;
+    std::int64_t duration_decode_sum = 0ll;
 
-    for (std::size_t itr = 0; itr <= num_itr; itr++) {
+    for (int itr = 0; itr <= num_itr; itr++) {
         decoded_cloud.reset(cloud.num_elems());
 
         // Encode
@@ -54,7 +54,7 @@ void encode_decode_measurement(const PointCloud::PointCloud& cloud,
     std::cout << "\tStats :" << std::endl;
     std::cout << "\t\tOriginal size    : " << size_of_cloud(cloud) << " [bytes]" << std::endl;
     std::cout << "\t\tEncoded size     : " << static_cast<float>(encoded.size()) << " [bytes]" << std::endl;
-    std::cout << "\t\tCompression rate : " << static_cast<float>(encoded.size()) / size_of_cloud(cloud) * 100 << " [%]" << std::endl;
+    std::cout << "\t\tCompression rate : " << static_cast<float>(encoded.size()) / static_cast<float>(size_of_cloud(cloud)) * 100 << " [%]" << std::endl;
     std::cout << "\t\tDecoded size     : " << size_of_cloud(decoded_cloud) << " [bytes]" << std::endl;
     std::cout << "\t\tOriginal points  : " << cloud.num_elems() << std::endl;
     std::cout << "\t\tDecoded points   : " << decoded_cloud.num_elems() << std::endl;
