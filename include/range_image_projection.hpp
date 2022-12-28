@@ -1,6 +1,8 @@
 #ifndef RANGE_IMAGE_PROJECTION
 #define RANGE_IMAGE_PROJECTION
 
+#include <opencv2/core/simd_intrinsics.hpp>
+
 #include "image.hpp"
 #include "point_cloud.hpp"
 
@@ -67,6 +69,99 @@ public:
     auto& pitch() { return pitch_image; }
     const auto& pitch() const { return pitch_image; }
 
+#ifdef CV_SIMD128
+    cv::v_float32x4 atan2_degree_simd(const cv::v_float32x4& v_y, const cv::v_float32x4 v_x) {
+        const auto v_abs_x = cv::v_abs(v_x);
+        const auto v_abs_y = cv::v_abs(v_y);
+        const auto a = cv::v_min(v_abs_x, v_abs_y) / cv::v_max(v_abs_x, v_abs_y);
+        const auto s = a * a;
+        auto r = ((cv::v_setall_f32(-0.0464964749f) * s +
+                   cv::v_setall_f32(0.15931422f)) * s -
+                   cv::v_setall_f32(0.327622764f)
+                 ) * s * a + a;
+        r = cv::v_select(v_abs_x < v_abs_y, cv::v_setall_f32(1.57079637f) - r, r);
+        r = cv::v_select(v_x < cv::v_setzero_f32(), cv::v_setall_f32(std::numbers::pi_v<float>) - r, r);
+        r = cv::v_select(v_y < cv::v_setzero_f32(), cv::v_setall_f32(-1.f) * r, r);
+        r = r * cv::v_setall_f32(180.f) / cv::v_setall_f32(std::numbers::pi_v<float>);
+        return r;
+    }
+
+    template <int FLIP = 0>
+    void from_point_cloud(const PointCloud::PointCloud& cloud, Image::Image<RangeType>& range_out) {
+        constexpr auto simd_width = sizeof(cv::v_float32x4) / sizeof(float);
+        const auto v_zeros                        = cv::v_setzero_f32();
+        const auto v_range_scale                  = cv::v_setall_f32(range_scale);
+        const auto v_horizontal_degree_offset     = cv::v_setall_f32(horizontal_degree_offset);
+        const auto v_horizontal_degree_resolution = cv::v_setall_f32(horizontal_degree_resolution);
+        const auto v_vertical_degree_offset       = cv::v_setall_f32(vertical_degree_offset);
+        const auto v_vertical_degree_resolution   = cv::v_setall_f32(vertical_degree_resolution);
+        const auto v_width_m_1                    = cv::v_setall_f32(width - 1);
+        const auto v_height_m_1                   = cv::v_setall_f32(height - 1);
+        const auto v_range_t_min                  = cv::v_setall_f32(std::numeric_limits<RangeType>::min());
+        const auto v_range_t_max                  = cv::v_setall_f32(std::numeric_limits<RangeType>::max());
+
+        const auto clamp = [](const cv::v_float32x4& v_v, const cv::v_float32x4& v_min, const cv::v_float32x4& v_max) {
+            return cv::v_max(v_min, cv::v_min(v_v, v_max));
+        };
+
+        std::size_t idx = 0;
+        for (; idx + simd_width < cloud.num_elems(); idx += simd_width) {
+            const cv::v_float32x4 v_point_x = cv::v_float32x4(cloud.data[idx + 0].x, cloud.data[idx + 1].x, cloud.data[idx + 2].x, cloud.data[idx + 3].x);
+            const cv::v_float32x4 v_point_y = cv::v_float32x4(cloud.data[idx + 0].y, cloud.data[idx + 1].y, cloud.data[idx + 2].y, cloud.data[idx + 3].y);
+            const cv::v_float32x4 v_point_z = cv::v_float32x4(cloud.data[idx + 0].z, cloud.data[idx + 1].z, cloud.data[idx + 2].z, cloud.data[idx + 3].z);
+
+            // Calculate some parameters for spherical coord.
+            const auto v_distance     = cv::v_sqrt(v_point_x * v_point_x + v_point_y * v_point_y);
+            const auto v_range        = cv::v_sqrt(v_point_x * v_point_x + v_point_y * v_point_y + v_point_z * v_point_z);
+            const auto v_range_scaled = clamp(v_range * v_range_scale, v_range_t_min, v_range_t_max);
+            const auto v_yaw          = atan2_degree_simd(v_point_y, v_point_x);
+            const auto v_pitch        = atan2_degree_simd(v_point_z, v_distance);
+
+            const auto v_x = clamp((v_yaw + v_horizontal_degree_offset) / v_horizontal_degree_resolution, v_zeros, v_width_m_1);
+            auto v_y = clamp((v_pitch + v_vertical_degree_offset) / v_vertical_degree_resolution, v_zeros, v_height_m_1);
+            if constexpr (FLIP != 0) {
+                v_y = v_height_m_1 - v_y;
+            }
+
+            for (std::size_t i = 0; i < simd_width; i++) {
+                const auto x = static_cast<std::size_t>(v_x.val[i]);
+                const auto y = static_cast<std::size_t>(v_y.val[i]);
+                range_out.at(x, y) = static_cast<RangeType>(v_range_scaled.val[i]);
+                range_image.at(x,  y) = v_range.val[i];
+                yaw_image.at(x, y) = v_yaw.val[i];
+                pitch_image.at(x, y) = v_pitch.val[i];
+            }
+        }
+        // Remainder
+        for (; idx < cloud.num_elems(); idx++) {
+            const auto point_x = cloud.data[idx].x;
+            const auto point_y = cloud.data[idx].y;
+            const auto point_z = cloud.data[idx].z;
+
+            // Calculate some parameters for spherical coord.
+            const auto distance = std::sqrt(point_x * point_x + point_y * point_y);
+            const auto range    = std::sqrt(point_x * point_x + point_y * point_y + point_z * point_z);
+            const auto yaw      = atan2_degree(point_y, point_x);
+            const auto pitch    = atan2_degree(point_z, distance);
+
+            const auto x = std::clamp<int>(
+                (yaw + horizontal_degree_offset) / horizontal_degree_resolution,
+                0,
+                width - 1);
+            const auto y = std::clamp<int>(
+                (pitch + vertical_degree_offset) / vertical_degree_resolution,
+                0,
+                height - 1);
+
+            const int Y = (FLIP == 0) ? y : height - 1 - y;
+            range_out.at(x, Y) = static_cast<RangeType>(
+                std::clamp<RangeType>(range * range_scale, std::numeric_limits<RangeType>::min(), std::numeric_limits<RangeType>::max()));
+            range_image.at(x,  Y) = range;
+            yaw_image.at(x, Y) = yaw;
+            pitch_image.at(x, Y) = pitch;
+        }
+    }
+#else
     template <int FLIP = 0>
     void from_point_cloud(const PointCloud::PointCloud& cloud, Image::Image<RangeType>& range_out) {
         for (std::size_t idx = 0; idx < cloud.num_elems(); idx++) {
@@ -97,6 +192,7 @@ public:
             pitch_image.at(x, Y) = pitch;
         }
     }
+#endif
 
     template <int FLIP = 0>
     void to_point_cloud(const Image::Image<RangeType>& range_in, PointCloud::PointCloud& cloud) {
@@ -118,6 +214,37 @@ public:
         for (std::size_t y = 0; y < height; y++) {
             for (std::size_t x = 0; x < width; x++) {
                 const auto range = static_cast<float>(range_in.at(x, y)) / range_scale;
+                if (range <= 0.f) {
+                    continue;
+                }
+
+                const auto&& [point_x, point_y, point_z] = calculate_3d_coord<FLIP>(range, x, y);
+                cloud.append(PointCloud::PointXYZReflection{
+                    .x=point_x, .y=point_y, .z=point_z, .reflection=static_cast<float>(label_image.at(x, y))});
+            }
+        }
+    }
+
+    template <int FLIP = 0>
+    void to_point_cloud(const Image::Image<float>& range_in, PointCloud::PointCloud& cloud) {
+        for (std::size_t y = 0; y < height; y++) {
+            for (std::size_t x = 0; x < width; x++) {
+                const auto range = range_in.at(x, y);
+                if (range <= 0.f) {
+                    continue;
+                }
+
+                const auto [point_x, point_y, point_z] = calculate_3d_coord<FLIP>(range, x, y);
+                cloud.append(PointCloud::PointXYZReflection{.x=point_x, .y=point_y, .z=point_z, .reflection=range});
+            }
+        }
+    }
+
+    template <int FLIP = 0>
+    void to_point_cloud(const Image::Image<float>& range_in, const Image::Image<int>& label_image, PointCloud::PointCloud& cloud) {
+        for (std::size_t y = 0; y < height; y++) {
+            for (std::size_t x = 0; x < width; x++) {
+                const auto range = range_in.at(x, y);
                 if (range <= 0.f) {
                     continue;
                 }

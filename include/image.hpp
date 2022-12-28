@@ -63,13 +63,16 @@ public:
     }
 
     auto encode(const std::string& format, const std::vector<int>& params = std::vector<int>()) {
-        static_assert(std::is_same_v<ElemType, std::uint8_t> || std::is_same_v<ElemType, std::uint16_t>);
+        static_assert(std::is_same_v<ElemType, std::uint8_t> || std::is_same_v<ElemType, std::uint16_t> ||
+                      std::is_same_v<ElemType, float>);
 
         cv::Mat image;
         if constexpr (std::is_same_v<ElemType, std::uint8_t>) {
             image = cv::Mat(height_, width_, CV_8UC1, data_.get());
         } else if constexpr (std::is_same_v<ElemType, std::uint16_t>) {
             image = cv::Mat(height_, width_, CV_16UC1, data_.get());
+        } else if constexpr (std::is_same_v<ElemType, float>) {
+            image = cv::Mat(height_, width_, CV_8UC4, data_.get());
         }
 
         std::vector<std::uint8_t> buffer;

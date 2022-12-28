@@ -17,7 +17,7 @@ void benchmark(const std::string& filename);
 constexpr auto NOT_LABELED = -1;
 constexpr auto GROUND_LABEL = 0;
 constexpr auto GROUND_DEGREE_THRESHOLD = 5.f;
-constexpr auto ONE_OBJECT_THRESHOLD = 5.f;
+constexpr auto ONE_OBJECT_THRESHOLD = 10.f;
 constexpr auto NEIGHBOR_N = 4;
 
 template <int FLIP = 0>
@@ -181,6 +181,7 @@ int main(int argc, char** argv) {
     const auto height = range_projector.height;
     Image::Image<std::uint16_t> range_image(width, height);
     range_projector.from_point_cloud<FLIP>(cloud, range_image);
+    Image::save_image("dump_range.png", range_image);
 
     Image::Image<int> label_image(width, height);
     ground_labeling<FLIP>(range_image, label_image, range_projector.vertical_degree_resolution,
@@ -189,12 +190,12 @@ int main(int argc, char** argv) {
                          range_projector.vertical_degree_resolution);
 
     PointCloud::PointCloud cloud_out(cloud.num_elems());
-    range_projector.to_point_cloud<FLIP>(range_image, label_image, cloud_out);
+    range_projector.to_point_cloud<FLIP>(range_projector.range(), label_image, cloud_out);
     cloud_out.save("cloud_out.bin");
 
     Image::Image<Image::RGB> color_label(width, height);
     labels_to_color(label_image, color_label);
-    // save_image("label.png", color_label);
+    Image::save_image("label.png", color_label);
 
     return 0;
 }

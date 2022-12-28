@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(clustering_based_pcc)
+project(lpcc)
 
 find_package(OpenCV REQUIRED)
 if(NOT OpenCV_FOUND)
