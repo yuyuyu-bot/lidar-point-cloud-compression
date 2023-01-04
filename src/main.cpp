@@ -177,24 +177,24 @@ int main(int argc, char** argv) {
     const auto filename = std::string{argv[1]};
     benchmark(filename);
 
-    constexpr auto FLIP = 1;
     const PointCloud::PointCloud cloud(filename);
 
-    RangeImageProjection::Projector<std::uint16_t> range_projector;
+    constexpr auto FLIP = 1;
+    RangeImageProjection::Projector<std::uint16_t, FLIP> range_projector;
     const auto width = range_projector.width;
     const auto height = range_projector.height;
     Image::Image<std::uint16_t> range_image(width, height);
-    range_projector.from_point_cloud<FLIP>(cloud, range_image);
+    range_projector.from_point_cloud(cloud, range_image);
     range_image.save("dump_range.png");
 
     Image::Image<int> label_image(width, height);
-    ground_labeling<FLIP>(range_image, label_image, range_projector.vertical_degree_resolution,
-                          range_projector.vertical_degree_offset);
+    ground_labeling(range_image, label_image, range_projector.vertical_degree_resolution,
+                    range_projector.vertical_degree_offset);
     range_image_labeling(range_image, label_image, range_projector.horizontal_degree_resolution,
                          range_projector.vertical_degree_resolution);
 
     PointCloud::PointCloud cloud_out(cloud.num_elems());
-    range_projector.to_point_cloud<FLIP>(range_image, label_image, cloud_out);
+    range_projector.to_point_cloud(range_image, label_image, cloud_out);
     cloud_out.save("cloud_out.bin");
 
     Image::Image<std::uint8_t, 3> color_label(width, height);

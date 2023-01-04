@@ -9,7 +9,7 @@
 namespace LPCC {
 namespace RangeImageProjection {
 
-template <typename RangeType>
+template <typename RangeType, int FLIP = 0>
 class Projector {
 public:
     struct Parameters {
@@ -54,7 +54,6 @@ public:
     auto& pitch() { return pitch_image; }
     const auto& pitch() const { return pitch_image; }
 
-    template <int FLIP = 0>
     void from_point_cloud(const PointCloud::PointCloud& cloud, Image::Image<RangeType>& range_out) {
         constexpr auto simd_width = sizeof(cv::v_float32x4) / sizeof(float);
         const auto v_zeros                        = cv::v_setzero_f32();
@@ -135,7 +134,6 @@ public:
         }
     }
 
-    template <int FLIP = 0>
     void to_point_cloud(const Image::Image<RangeType>& range_in, PointCloud::PointCloud& cloud) {
         for (std::size_t y = 0; y < height; y++) {
             for (std::size_t x = 0; x < width; x++) {
@@ -144,13 +142,12 @@ public:
                     continue;
                 }
 
-                const auto [point_x, point_y, point_z] = calculate_3d_coord<FLIP>(range, x, y);
+                const auto [point_x, point_y, point_z] = calculate_3d_coord(range, x, y);
                 cloud.append(PointCloud::PointXYZReflection{.x=point_x, .y=point_y, .z=point_z, .reflection=range});
             }
         }
     }
 
-    template <int FLIP = 0>
     void to_point_cloud(const Image::Image<RangeType>& range_in, const Image::Image<int>& label_image, PointCloud::PointCloud& cloud) {
         for (std::size_t y = 0; y < height; y++) {
             for (std::size_t x = 0; x < width; x++) {
@@ -159,7 +156,7 @@ public:
                     continue;
                 }
 
-                const auto&& [point_x, point_y, point_z] = calculate_3d_coord<FLIP>(range, x, y);
+                const auto&& [point_x, point_y, point_z] = calculate_3d_coord(range, x, y);
                 cloud.append(PointCloud::PointXYZReflection{
                     .x=point_x, .y=point_y, .z=point_z, .reflection=static_cast<float>(label_image.at(x, y))});
             }
@@ -185,7 +182,6 @@ private:
     }
 #endif // CV_SIMD128
 
-    template <int FLIP>
     std::tuple<float, float, float> calculate_3d_coord(const float range, const std::size_t x, const std::size_t y) {
         const auto Y = (FLIP == 0) ? y : height - 1 - y;
 
@@ -218,7 +214,6 @@ private:
     Image::Image<float> yaw_image;
     Image::Image<float> pitch_image;
 };
-
 
 } // namespace RangeImageProjection
 } // LPCC
