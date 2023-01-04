@@ -3,7 +3,6 @@
 
 #include <cstddef>
 
-namespace {
 namespace LPCC {
 
 class NNeighbor {
@@ -57,6 +56,5 @@ private:
 };
 
 } // namespace LPCC
-} // anonymous namespace
 
 #endif // N_NEIGHBOR_HPP

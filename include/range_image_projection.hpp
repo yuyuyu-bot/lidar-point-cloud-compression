@@ -6,7 +6,6 @@
 #include "image.hpp"
 #include "point_cloud.hpp"
 
-namespace {
 namespace LPCC {
 namespace RangeImageProjection {
 
@@ -287,6 +286,5 @@ private:
 
 } // namespace RangeImageProjection
 } // LPCC
-} // anonymous namespace
 
 #endif // RANGE_IMAGE_PROJECTION

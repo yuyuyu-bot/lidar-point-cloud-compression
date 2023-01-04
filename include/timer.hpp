@@ -5,7 +5,6 @@
 #include <iostream>
 #include <stack>
 
-namespace {
 namespace LPCC {
 
 class Timer {
@@ -34,6 +33,5 @@ private:
 };
 
 } // namespace LPCC
-} // anonymous namespace
 
 #endif // TIMER_HPP

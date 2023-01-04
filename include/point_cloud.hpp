@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-namespace {
 namespace LPCC {
 namespace PointCloud {
 
@@ -70,6 +69,5 @@ public:
 
 } // namespace PointCloud
 } // namespace LPCC
-} // anonymous namespace
 
 #endif // POINT_CLOUD_HPP

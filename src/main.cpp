@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
     const auto height = range_projector.height;
     Image::Image<std::uint16_t> range_image(width, height);
     range_projector.from_point_cloud<FLIP>(cloud, range_image);
-    Image::save_image("dump_range.png", range_image);
+    range_image.save("dump_range.png");
 
     Image::Image<int> label_image(width, height);
     ground_labeling<FLIP>(range_image, label_image, range_projector.vertical_degree_resolution,
@@ -197,9 +197,9 @@ int main(int argc, char** argv) {
     range_projector.to_point_cloud<FLIP>(range_projector.range(), label_image, cloud_out);
     cloud_out.save("cloud_out.bin");
 
-    Image::Image<Image::RGB> color_label(width, height);
+    Image::Image<std::uint8_t, 3> color_label(width, height);
     labels_to_color(label_image, color_label);
-    Image::save_image("label.png", color_label);
+    color_label.save("label.png");
 
     return 0;
 }
