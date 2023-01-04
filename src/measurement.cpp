@@ -40,6 +40,7 @@ void encode_decode_measurement(const PointCloud::PointCloud& cloud,
 
         // Decode
         timer.tick();
+
         decoded.decode(encoded);
         range_projector.to_point_cloud(decoded, decoded_cloud);
         if (itr > 0) {

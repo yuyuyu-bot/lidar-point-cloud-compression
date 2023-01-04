@@ -25,6 +25,11 @@ public:
         create(image.cols, image.rows, image.data);
     }
 
+    Image(const std::vector<std::uint8_t>& buffer) {
+        const cv::Mat image = cv::imdecode(buffer, cv::IMREAD_UNCHANGED);
+        create(image.cols, image.rows, image.data);
+    }
+
     void create(const std::size_t width, const std::size_t height, const ElemType* const data = nullptr) {
         width_ = width;
         height_ = height;
