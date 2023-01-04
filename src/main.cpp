@@ -194,7 +194,7 @@ int main(int argc, char** argv) {
                          range_projector.vertical_degree_resolution);
 
     PointCloud::PointCloud cloud_out(cloud.num_elems());
-    range_projector.to_point_cloud<FLIP>(range_projector.range(), label_image, cloud_out);
+    range_projector.to_point_cloud<FLIP>(range_image, label_image, cloud_out);
     cloud_out.save("cloud_out.bin");
 
     Image::Image<std::uint8_t, 3> color_label(width, height);
